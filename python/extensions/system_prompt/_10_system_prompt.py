@@ -3,7 +3,7 @@ from python.helpers.extension import Extension
 from python.helpers.mcp_handler import MCPConfig
 from agent import Agent, LoopData
 from python.helpers.settings import get_settings
-from python.helpers import projects
+from python.helpers import projects, files
 
 
 class SystemPrompt(Extension):
@@ -31,14 +31,38 @@ class SystemPrompt(Extension):
             system_prompt.append(project_prompt)
 
 
+def _get_prompt_dirs(agent: Agent) -> list[str]:
+    """Get prompt directories, with lite prompts first if small_context_mode is enabled."""
+    settings = get_settings()
+    dirs = []
+
+    # If small_context_mode, prioritize lite prompts
+    if settings.get("small_context_mode", False):
+        dirs.append(files.get_abs_path("prompts", "lite"))
+
+    # Agent-specific prompts (if agent has custom profile)
+    if agent.config.profile:
+        dirs.append(files.get_abs_path("agents", agent.config.profile, "prompts"))
+
+    # Default prompts as fallback
+    dirs.append(files.get_abs_path("prompts"))
+
+    return dirs
+
+
 def get_main_prompt(agent: Agent):
-    return agent.read_prompt("agent.system.main.md")
+    dirs = _get_prompt_dirs(agent)
+    prompt = files.read_prompt_file("agent.system.main.md", _directories=dirs)
+    return files.remove_code_fences(prompt)
 
 
 def get_tools_prompt(agent: Agent):
-    prompt = agent.read_prompt("agent.system.tools.md")
+    dirs = _get_prompt_dirs(agent)
+    prompt = files.read_prompt_file("agent.system.tools.md", _directories=dirs)
+    prompt = files.remove_code_fences(prompt)
     if agent.config.chat_model.vision:
-        prompt += "\n\n" + agent.read_prompt("agent.system.tools_vision.md")
+        vision_prompt = files.read_prompt_file("agent.system.tools_vision.md", _directories=dirs)
+        prompt += "\n\n" + files.remove_code_fences(vision_prompt)
     return prompt
 
 

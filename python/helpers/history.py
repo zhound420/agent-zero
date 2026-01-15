@@ -9,6 +9,7 @@ from python.helpers import messages, tokens, settings, call_llm
 from enum import Enum
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage, AIMessage
 
+# Default compression ratios (for large context models)
 BULK_MERGE_COUNT = 3
 TOPICS_KEEP_COUNT = 3
 CURRENT_TOPIC_RATIO = 0.5
@@ -17,6 +18,38 @@ HISTORY_BULK_RATIO = 0.2
 TOPIC_COMPRESS_RATIO = 0.65
 LARGE_MESSAGE_TO_TOPIC_RATIO = 0.25
 RAW_MESSAGE_OUTPUT_TEXT_TRIM = 100
+
+
+def get_compression_ratios() -> dict:
+    """
+    Get compression ratios based on context size.
+    Returns more aggressive ratios for small context models.
+    """
+    set = settings.get_settings()
+    ctx_length = set.get("chat_model_ctx_length", 100000)
+    small_mode = set.get("small_context_mode", False)
+
+    # Use aggressive compression for small context (<20k tokens) or when explicitly enabled
+    if small_mode or ctx_length < 20000:
+        return {
+            "BULK_MERGE_COUNT": 2,
+            "TOPICS_KEEP_COUNT": 2,
+            "CURRENT_TOPIC_RATIO": 0.55,
+            "HISTORY_TOPIC_RATIO": 0.25,
+            "HISTORY_BULK_RATIO": 0.20,
+            "TOPIC_COMPRESS_RATIO": 0.4,  # Compress more aggressively
+            "LARGE_MESSAGE_TO_TOPIC_RATIO": 0.12,
+        }
+    else:
+        return {
+            "BULK_MERGE_COUNT": BULK_MERGE_COUNT,
+            "TOPICS_KEEP_COUNT": TOPICS_KEEP_COUNT,
+            "CURRENT_TOPIC_RATIO": CURRENT_TOPIC_RATIO,
+            "HISTORY_TOPIC_RATIO": HISTORY_TOPIC_RATIO,
+            "HISTORY_BULK_RATIO": HISTORY_BULK_RATIO,
+            "TOPIC_COMPRESS_RATIO": TOPIC_COMPRESS_RATIO,
+            "LARGE_MESSAGE_TO_TOPIC_RATIO": LARGE_MESSAGE_TO_TOPIC_RATIO,
+        }
 
 
 class RawMessage(TypedDict):
@@ -157,11 +190,12 @@ class Topic(Record):
 
     async def compress_large_messages(self) -> bool:
         set = settings.get_settings()
+        ratios = get_compression_ratios()
         msg_max_size = (
             set["chat_model_ctx_length"]
             * set["chat_model_ctx_history"]
-            * CURRENT_TOPIC_RATIO
-            * LARGE_MESSAGE_TO_TOPIC_RATIO
+            * ratios["CURRENT_TOPIC_RATIO"]
+            * ratios["LARGE_MESSAGE_TO_TOPIC_RATIO"]
         )
         large_msgs = []
         for m in (m for m in self.messages if not m.summary):
@@ -201,9 +235,9 @@ class Topic(Record):
         return compress
 
     async def compress_attention(self) -> bool:
-
+        ratios = get_compression_ratios()
         if len(self.messages) > 2:
-            cnt_to_sum = math.ceil((len(self.messages) - 2) * TOPIC_COMPRESS_RATIO)
+            cnt_to_sum = math.ceil((len(self.messages) - 2) * ratios["TOPIC_COMPRESS_RATIO"])
             msg_to_sum = self.messages[1 : cnt_to_sum + 1]
             summary = await self.summarize_messages(msg_to_sum)
             sum_msg_content = self.history.agent.parse_prompt(
@@ -370,10 +404,11 @@ class History(Record):
                 self.get_bulks_tokens(),
             )
             total = _get_ctx_size_for_history()
+            compression_ratios = get_compression_ratios()
             ratios = [
-                (curr, CURRENT_TOPIC_RATIO, "current_topic"),
-                (hist, HISTORY_TOPIC_RATIO, "history_topic"),
-                (bulk, HISTORY_BULK_RATIO, "history_bulk"),
+                (curr, compression_ratios["CURRENT_TOPIC_RATIO"], "current_topic"),
+                (hist, compression_ratios["HISTORY_TOPIC_RATIO"], "history_topic"),
+                (bulk, compression_ratios["HISTORY_BULK_RATIO"], "history_bulk"),
             ]
             ratios = sorted(ratios, key=lambda x: (x[0] / total) / x[1], reverse=True)
             compressed_part = False
@@ -417,7 +452,8 @@ class History(Record):
 
     async def compress_bulks(self):
         # merge bulks if possible
-        compressed = await self.merge_bulks_by(BULK_MERGE_COUNT)
+        ratios = get_compression_ratios()
+        compressed = await self.merge_bulks_by(ratios["BULK_MERGE_COUNT"])
         # remove oldest bulk if necessary
         if not compressed:
             self.bulks.pop(0)

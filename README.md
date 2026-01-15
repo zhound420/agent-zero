@@ -91,6 +91,14 @@ Agent Zero now supports **Projects** – isolated workspaces with their own prom
 - The terminal interface is real-time streamed and interactive. You can stop and intervene at any point. If you see your agent heading in the wrong direction, just stop and tell it right away.
 - There is a lot of freedom in this framework. You can instruct your agents to regularly report back to superiors asking for permission to continue. You can instruct them to use point-scoring systems when deciding when to delegate subtasks. Superiors can double-check subordinates' results and dispute. The possibilities are endless.
 
+6. **Small Context Mode (Local Models)**
+
+- Optimized for local LLMs with limited context windows (~16k tokens) like those run via Ollama or LM Studio.
+- **Lite Prompts**: Condensed system prompts that reduce token usage by ~54% while maintaining full functionality.
+- **Session Continuation**: Automatically saves session state to memory, allowing you to start fresh contexts and resume with "continue" or "resume where we left off".
+- **Aggressive History Compression**: Smart compression ratios tuned for small context windows.
+- Enable in Settings → Memory → "Small Context Mode" and "Session Continuation".
+
 ## 🚀 Things you can build with Agent Zero
 
 - **Development Projects** - `"Create a React dashboard with real-time data visualization"`
@@ -115,13 +123,46 @@ A detailed setup guide for Windows, macOS, and Linux with a video can be found i
 
 ### ⚡ Quick Start
 
+**Option 1: Interactive Install (Recommended)**
 ```bash
-# Pull and run with Docker
+# Clone the repository
+git clone https://github.com/frdel/agent-zero.git
+cd agent-zero
 
+# Run the interactive installer
+./install.sh
+
+# Choose: Native Python or Docker
+# Configure: OpenAI, Anthropic, Ollama, LM Studio, or OpenRouter
+# Optional: Set up authentication and remote access
+```
+
+The installer will guide you through setup and create the necessary configuration files.
+
+**Option 2: Quick Docker (One command)**
+```bash
 docker pull agent0ai/agent-zero
 docker run -p 50001:80 agent0ai/agent-zero
 
 # Visit http://localhost:50001 to start
+```
+
+**Option 3: Docker with Host Networking (For local LLMs)**
+
+If you're running local models (Ollama, LM Studio) on the host machine:
+```bash
+docker run -d --network host agent0ai/agent-zero \
+  /bin/bash -c "
+    /usr/sbin/cron
+    export SEARXNG_SETTINGS_PATH=/etc/searxng/settings.yml
+    cd /usr/local/searxng/searxng-src
+    su searxng -c 'source /usr/local/searxng/searx-pyenv/bin/activate && python searx/webapp.py' &
+    sleep 2
+    source /opt/venv-a0/bin/activate && . /ins/copy_A0.sh
+    python /a0/run_ui.py --dockerized=true --host=0.0.0.0 --port=5001
+  "
+
+# Visit http://localhost:5001 to start
 ```
 
 ## 🐳 Fully Dockerized, with Speech-to-Text and TTS
@@ -165,6 +206,28 @@ docker run -p 50001:80 agent0ai/agent-zero
 
 
 ## 🎯 Changelog
+
+### v0.9.8 - Small Context Mode & Easy Install
+- **Interactive Install Script** (`./install.sh`)
+    - Choose between Native Python or Docker installation
+    - Guided setup for OpenAI, Anthropic, Ollama, LM Studio, OpenRouter
+    - Automatic virtual environment and dependency installation
+    - Docker setup with host networking for local LLM access
+    - Generates `run-docker.sh` and `stop-docker.sh` helper scripts
+    - Optional remote access configuration with IP allowlisting
+- **Small Context Mode** for local models (~16k context)
+    - Lite prompts with ~54% token reduction
+    - Session continuation via memory
+    - Aggressive history compression
+    - Auto-enabled when selecting local models in installer
+- **Session Continuation**
+    - Automatic session state saving to memory
+    - Resume sessions with "continue" or "resume where we left off"
+    - Configurable save interval and state size
+- **Docker Improvements**
+    - Host networking support for local LLM connectivity
+    - Complete service stack (cron, SearXNG, web UI) in single container
+    - Proper code execution with local Python TTY
 
 ### v0.9.7 - Projects
 [Release video](https://youtu.be/RrTDp_v9V1c)

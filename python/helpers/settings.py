@@ -75,6 +75,14 @@ class Settings(TypedDict):
     memory_memorize_consolidation: bool
     memory_memorize_replace_threshold: float
 
+    # Session continuation for small context models
+    session_continuation_enabled: bool
+    session_save_interval: int
+    session_state_max_chars: int
+
+    # Small context mode
+    small_context_mode: bool
+
     api_keys: dict[str, str]
 
     auth_login: str
@@ -837,6 +845,49 @@ def convert_out(settings: Settings) -> SettingsOutput:
         }
     )
 
+    # Session continuation settings for small context models
+    memory_fields.append(
+        {
+            "id": "session_continuation_enabled",
+            "title": "Session Continuation",
+            "description": "Save session state to memory periodically. Enables seamless continuation across sessions - say 'continue' in a new session to recall previous context. Recommended for small context models.",
+            "type": "switch",
+            "value": settings["session_continuation_enabled"],
+        }
+    )
+
+    memory_fields.append(
+        {
+            "id": "session_save_interval",
+            "title": "Session save interval",
+            "description": "Save session state every N messages. Lower values provide more frequent saves but use more utility model calls.",
+            "type": "number",
+            "min": 1,
+            "max": 20,
+            "value": settings["session_save_interval"],
+        }
+    )
+
+    memory_fields.append(
+        {
+            "id": "session_state_max_chars",
+            "title": "Session state max characters",
+            "description": "Maximum characters of conversation history to analyze when saving session state.",
+            "type": "number",
+            "value": settings["session_state_max_chars"],
+        }
+    )
+
+    memory_fields.append(
+        {
+            "id": "small_context_mode",
+            "title": "Small Context Mode",
+            "description": "Enable optimizations for models with small context windows (~16k tokens). Uses lite prompts, aggressive history compression, and enables session continuation.",
+            "type": "switch",
+            "value": settings["small_context_mode"],
+        }
+    )
+
     memory_section: SettingsSection = {
         "id": "memory",
         "title": "Memory",
@@ -1504,6 +1555,12 @@ def get_default_settings() -> Settings:
         memory_memorize_enabled=True,
         memory_memorize_consolidation=True,
         memory_memorize_replace_threshold=0.9,
+        # Session continuation defaults
+        session_continuation_enabled=False,
+        session_save_interval=3,
+        session_state_max_chars=6000,
+        # Small context mode
+        small_context_mode=False,
         api_keys={},
         auth_login="",
         auth_password="",
