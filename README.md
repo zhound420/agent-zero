@@ -26,6 +26,22 @@ Or see DeepWiki generated documentation:
 
 </div>
 
+---
+
+## 🔀 Fork Enhancements
+
+> This fork adds optimizations for **local LLMs** with limited context windows (~16k tokens).
+
+| Feature | Description |
+|---------|-------------|
+| **Small Context Mode** | Lite prompts (~54% token reduction) + aggressive history compression |
+| **Session Continuation** | Auto-saves state to memory; resume with "continue" in new chats |
+| **Interactive Installer** | `./install.sh` - guided setup for Native/Docker with local model support |
+| **Docker + Host Network** | Access local LLMs (Ollama/LM Studio) from container |
+
+Enable in **Settings → Memory → "Small Context Mode"** and **"Session Continuation"**.
+
+---
 
 <div align="center">
 
